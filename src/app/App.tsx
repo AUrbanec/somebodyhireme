@@ -310,11 +310,19 @@ export default function App() {
             
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <h3 className="text-xl font-semibold mb-4 text-[#8d5e10]">My Music Playlist</h3>
-              <div className="aspect-[4/1] md:aspect-[3/1] md:min-h-[352px] bg-gray-200 rounded-lg flex items-center justify-center text-gray-500">
+              <div className="rounded-lg overflow-hidden">
                 {contactInfo?.spotify_embed_url ? (
-                  <iframe src={contactInfo.spotify_embed_url} className="w-full h-full rounded" allowFullScreen />
+                  <iframe 
+                    src={contactInfo.spotify_embed_url} 
+                    className="w-full rounded" 
+                    height="352"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    loading="lazy"
+                  />
                 ) : (
-                  <p>[Spotify Playlist Embed - Add your Spotify iframe URL here]</p>
+                  <div className="h-[152px] bg-gray-200 flex items-center justify-center text-gray-500">
+                    <p>[Spotify Playlist Embed - Add your Spotify iframe URL here]</p>
+                  </div>
                 )}
               </div>
             </div>
