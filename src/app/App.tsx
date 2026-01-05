@@ -143,7 +143,7 @@ export default function App() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 md:py-24 bg-gradient-to-br from-[#523709] via-[#094952] to-[#120952]">
         <div className="max-w-5xl mx-auto text-center space-y-8">
-          <h1 className="text-5xl md:text-7xl font-bold text-[#f6dbad] drop-shadow-lg">
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold text-[#f6dbad] drop-shadow-lg break-words">
             {settings.hero_title || 'SomebodyHire.Me'}
           </h1>
           
@@ -176,6 +176,7 @@ export default function App() {
       </section>
 
       {/* Personal Overview Section */}
+      {settings.page_personal_enabled !== 'false' && (
       <section className="bg-[#eff5f5] py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-[#107d8d]">Personal Overview</h2>
@@ -184,7 +185,7 @@ export default function App() {
             <div className="space-y-4">
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="text-xl font-semibold mb-4 text-[#107d8d]">About Me</h3>
-                <p className="text-gray-700">{personalOverview?.about_me}</p>
+                <p className="text-gray-700 whitespace-pre-wrap">{personalOverview?.about_me}</p>
               </div>
               
               <div className="bg-white p-6 rounded-lg shadow-md aspect-video flex items-center justify-center text-gray-500">
@@ -214,8 +215,10 @@ export default function App() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Experience Section */}
+      {settings.page_experience_enabled !== 'false' && (
       <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-[#8d5e10]">Experience</h2>
@@ -238,8 +241,10 @@ export default function App() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Testimonials Section */}
+      {settings.page_testimonials_enabled !== 'false' && (
       <section className="bg-[#f0eff5] py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-[#20108d]">Testimonials</h2>
@@ -264,8 +269,10 @@ export default function App() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Skills Section */}
+      {settings.page_skills_enabled !== 'false' && (
       <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-[#107d8d]">Skills</h2>
@@ -285,8 +292,10 @@ export default function App() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Hobbies Section */}
+      {settings.page_hobbies_enabled !== 'false' && (
       <section className="bg-[#f5f3ef] py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-[#8d5e10]">Hobbies & Interests</h2>
@@ -294,14 +303,14 @@ export default function App() {
             <div className="space-y-4 mb-8">
               {hobbies.map((hobby) => (
                 <Collapsible key={hobby.id} title={hobby.title}>
-                  <p className="text-gray-700">{hobby.details}</p>
+                  <p className="text-gray-700 whitespace-pre-wrap">{hobby.details}</p>
                 </Collapsible>
               ))}
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <h3 className="text-xl font-semibold mb-4 text-[#8d5e10]">My Music Playlist</h3>
-              <div className="aspect-[4/1] bg-gray-200 rounded-lg flex items-center justify-center text-gray-500">
+              <div className="aspect-[4/1] md:aspect-[3/1] md:min-h-[352px] bg-gray-200 rounded-lg flex items-center justify-center text-gray-500">
                 {contactInfo?.spotify_embed_url ? (
                   <iframe src={contactInfo.spotify_embed_url} className="w-full h-full rounded" allowFullScreen />
                 ) : (
@@ -312,8 +321,10 @@ export default function App() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Interview Scheduling Section */}
+      {settings.page_contact_enabled !== 'false' && (
       <section className="py-16 bg-gradient-to-b from-[#eff5f5] to-[#f0eff5]">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-[#20108d]">Schedule an Interview</h2>
@@ -415,6 +426,7 @@ export default function App() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Footer */}
       <footer className="bg-[#170f03] text-[#f6dbad] py-8">

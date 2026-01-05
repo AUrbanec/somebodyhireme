@@ -160,8 +160,8 @@ const HeroEditor: React.FC<EditorProps> = ({ showMessage }) => {
         <textarea
           value={settings.hero_tagline1 || ''}
           onChange={(e) => updateSetting('hero_tagline1', e.target.value)}
-          rows={3}
-          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d]"
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d] min-h-[80px] resize-y"
+          style={{ fieldSizing: 'content' } as React.CSSProperties}
         />
       </div>
 
@@ -180,8 +180,8 @@ const HeroEditor: React.FC<EditorProps> = ({ showMessage }) => {
         <textarea
           value={settings.hero_description || ''}
           onChange={(e) => updateSetting('hero_description', e.target.value)}
-          rows={4}
-          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d]"
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d] min-h-[100px] resize-y"
+          style={{ fieldSizing: 'content' } as React.CSSProperties}
         />
       </div>
 
@@ -190,8 +190,8 @@ const HeroEditor: React.FC<EditorProps> = ({ showMessage }) => {
         <textarea
           value={settings.hero_subdescription || ''}
           onChange={(e) => updateSetting('hero_subdescription', e.target.value)}
-          rows={2}
-          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d]"
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d] min-h-[60px] resize-y"
+          style={{ fieldSizing: 'content' } as React.CSSProperties}
         />
       </div>
 
@@ -199,9 +199,9 @@ const HeroEditor: React.FC<EditorProps> = ({ showMessage }) => {
         <label className="block text-sm font-medium text-gray-700 mb-2">Bullet Points (one per line)</label>
         <textarea
           value={bullets.join('\n')}
-          onChange={(e) => updateSetting('hero_bullets', JSON.stringify(e.target.value.split('\n').filter(Boolean)))}
-          rows={5}
-          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d]"
+          onChange={(e) => updateSetting('hero_bullets', JSON.stringify(e.target.value.split('\n')))}
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d] min-h-[120px] resize-y"
+          style={{ fieldSizing: 'content' } as React.CSSProperties}
         />
       </div>
 
@@ -260,8 +260,8 @@ const PersonalEditor: React.FC<EditorProps> = ({ showMessage }) => {
         <textarea
           value={data.about_me || ''}
           onChange={(e) => setData({ ...data, about_me: e.target.value })}
-          rows={4}
-          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d]"
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d] min-h-[100px] resize-y"
+          style={{ fieldSizing: 'content' } as React.CSSProperties}
         />
       </div>
 
@@ -280,9 +280,9 @@ const PersonalEditor: React.FC<EditorProps> = ({ showMessage }) => {
         <label className="block text-sm font-medium text-gray-700 mb-2">Personal Traits (one per line with emoji)</label>
         <textarea
           value={traits.join('\n')}
-          onChange={(e) => setData({ ...data, traits: JSON.stringify(e.target.value.split('\n').filter(Boolean)) })}
-          rows={6}
-          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d]"
+          onChange={(e) => setData({ ...data, traits: JSON.stringify(e.target.value.split('\n')) })}
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-[#107d8d] min-h-[150px] resize-y"
+          style={{ fieldSizing: 'content' } as React.CSSProperties}
           placeholder="✨ Creative problem solver"
         />
       </div>
@@ -452,9 +452,9 @@ const ExperienceItem: React.FC<{
             <label className="block text-sm font-medium mb-1">Details (one per line)</label>
             <textarea
               value={details.join('\n')}
-              onChange={(e) => onChange({ ...item, details: JSON.stringify(e.target.value.split('\n').filter(Boolean)) })}
-              rows={5}
-              className="w-full p-2 border rounded"
+              onChange={(e) => onChange({ ...item, details: JSON.stringify(e.target.value.split('\n')) })}
+              className="w-full p-2 border rounded min-h-[120px] resize-y"
+              style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
           </div>
           <div className="flex gap-2">
@@ -530,8 +530,8 @@ const TestimonialsEditor: React.FC<EditorProps> = ({ showMessage }) => {
                 newItems[idx] = { ...item, quote: e.target.value };
                 setItems(newItems);
               }}
-              rows={3}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded min-h-[80px] resize-y"
+              style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -799,8 +799,8 @@ const HobbiesEditor: React.FC<EditorProps> = ({ showMessage }) => {
                 newItems[idx] = { ...item, details: e.target.value };
                 setItems(newItems);
               }}
-              rows={3}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border rounded min-h-[80px] resize-y"
+              style={{ fieldSizing: 'content' } as React.CSSProperties}
             />
           </div>
           <div className="flex gap-2">
@@ -1022,6 +1022,22 @@ const SettingsPanel: React.FC<EditorProps> = ({ showMessage }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [savingVisibility, setSavingVisibility] = useState(false);
+
+  const pageVisibilityOptions = [
+    { key: 'page_personal_enabled', label: 'Personal Overview' },
+    { key: 'page_experience_enabled', label: 'Experience' },
+    { key: 'page_testimonials_enabled', label: 'Testimonials' },
+    { key: 'page_skills_enabled', label: 'Skills' },
+    { key: 'page_hobbies_enabled', label: 'Hobbies & Interests' },
+    { key: 'page_contact_enabled', label: 'Schedule an Interview' },
+  ];
+
+  useEffect(() => {
+    api.fetchSettings().then(setSettings).catch(console.error).finally(() => setLoadingSettings(false));
+  }, []);
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
@@ -1047,44 +1063,101 @@ const SettingsPanel: React.FC<EditorProps> = ({ showMessage }) => {
     }
   };
 
+  const togglePageVisibility = (key: string) => {
+    const currentValue = settings[key] !== 'false';
+    setSettings(prev => ({ ...prev, [key]: (!currentValue).toString() }));
+  };
+
+  const handleSaveVisibility = async () => {
+    setSavingVisibility(true);
+    try {
+      await api.updateSettings(settings);
+      showMessage('success', 'Page visibility saved!');
+    } catch (err) {
+      showMessage('error', 'Failed to save visibility settings');
+    } finally {
+      setSavingVisibility(false);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow p-6 max-w-md">
-      <h3 className="text-lg font-medium mb-4">Change Password</h3>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Current Password</label>
-          <input
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
+    <div className="space-y-6 max-w-2xl">
+      {/* Page Visibility Section */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium mb-4">Page Visibility</h3>
+        <p className="text-sm text-gray-500 mb-4">Toggle sections on or off on your public site.</p>
+        {loadingSettings ? (
+          <div className="text-center py-4">Loading...</div>
+        ) : (
+          <div className="space-y-3">
+            {pageVisibilityOptions.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                <span className="text-gray-700">{label}</span>
+                <button
+                  onClick={() => togglePageVisibility(key)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings[key] !== 'false' ? 'bg-[#107d8d]' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      settings[key] !== 'false' ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={handleSaveVisibility}
+              disabled={savingVisibility}
+              className="mt-4 flex items-center gap-2 bg-[#107d8d] hover:bg-[#0a5a66] text-white px-4 py-2 rounded disabled:opacity-50"
+            >
+              <Save size={16} />
+              {savingVisibility ? 'Saving...' : 'Save Visibility Settings'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Change Password Section */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium mb-4">Change Password</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Current Password</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">New Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Confirm New Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
+          <button
+            onClick={handleChangePassword}
+            disabled={saving}
+            className="bg-[#107d8d] hover:bg-[#0a5a66] text-white px-4 py-2 rounded disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Change Password'}
+          </button>
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">New Password</label>
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Confirm New Password</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
-        </div>
-        <button
-          onClick={handleChangePassword}
-          disabled={saving}
-          className="bg-[#107d8d] hover:bg-[#0a5a66] text-white px-4 py-2 rounded disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : 'Change Password'}
-        </button>
       </div>
     </div>
   );
