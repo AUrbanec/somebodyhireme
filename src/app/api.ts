@@ -24,6 +24,8 @@ export const submitContactForm = async (data: {
   email: string;
   company?: string;
   preferredDate?: string;
+  preferredTime?: string;
+  interviewDuration?: string;
   message?: string;
 }) => {
   const res = await fetch(`${API_BASE}/api/contact`, {
@@ -281,5 +283,30 @@ export const deleteSubmission = async (id: number) => {
     headers: authHeaders()
   });
   if (!res.ok) throw new Error('Failed to delete submission');
+  return res.json();
+};
+
+// Admin API - Google Integration
+export const getGoogleAuthUrl = async () => {
+  const res = await fetch(`${API_BASE}/api/admin/google/auth-url`, { headers: authHeaders() });
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.error || 'Failed to get Google auth URL');
+  }
+  return res.json();
+};
+
+export const getGoogleStatus = async () => {
+  const res = await fetch(`${API_BASE}/api/admin/google/status`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to get Google status');
+  return res.json();
+};
+
+export const disconnectGoogle = async () => {
+  const res = await fetch(`${API_BASE}/api/admin/google/disconnect`, {
+    method: 'POST',
+    headers: authHeaders()
+  });
+  if (!res.ok) throw new Error('Failed to disconnect Google');
   return res.json();
 };

@@ -4,6 +4,8 @@ import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { neon } from '@neondatabase/serverless';
+import { google } from 'googleapis';
+import nodemailer from 'nodemailer';
 
 const app = express();
 
@@ -12,6 +14,90 @@ const connectionString = process.env.NETLIFY_DATABASE_URL || process.env.DATABAS
 const sql = neon(connectionString);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// Google OAuth2 Configuration
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:8888/.netlify/functions/api/api/google/callback';
+
+const oauth2Client = new google.auth.OAuth2(
+  GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URI
+);
+
+// Helper to get OAuth client with stored tokens
+const getAuthenticatedClient = async () => {
+  const rows = await sql`SELECT value FROM site_settings WHERE key = 'google_refresh_token'`;
+  if (!rows[0]?.value) return null;
+  
+  oauth2Client.setCredentials({
+    refresh_token: rows[0].value
+  });
+  return oauth2Client;
+};
+
+// Helper to create calendar event
+const createCalendarEvent = async (eventDetails) => {
+  const auth = await getAuthenticatedClient();
+  if (!auth) throw new Error('Google Calendar not connected');
+  
+  const calendar = google.calendar({ version: 'v3', auth });
+  
+  const event = {
+    summary: eventDetails.summary,
+    description: eventDetails.description,
+    start: {
+      dateTime: eventDetails.startDateTime,
+      timeZone: eventDetails.timeZone || 'America/Chicago',
+    },
+    end: {
+      dateTime: eventDetails.endDateTime,
+      timeZone: eventDetails.timeZone || 'America/Chicago',
+    },
+    attendees: eventDetails.attendees || [],
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'email', minutes: 24 * 60 },
+        { method: 'popup', minutes: 30 },
+      ],
+    },
+  };
+  
+  const response = await calendar.events.insert({
+    calendarId: 'primary',
+    resource: event,
+    sendUpdates: 'all',
+  });
+  
+  return response.data;
+};
+
+// Helper to send email via Gmail
+const sendGmailEmail = async (emailDetails) => {
+  const auth = await getAuthenticatedClient();
+  if (!auth) throw new Error('Gmail not connected');
+  
+  const gmail = google.gmail({ version: 'v1', auth });
+  
+  const message = [
+    `To: ${emailDetails.to}`,
+    `Subject: ${emailDetails.subject}`,
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    emailDetails.body
+  ].join('\n');
+  
+  const encodedMessage = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  
+  await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: {
+      raw: encodedMessage,
+    },
+  });
+};
 
 app.use(cors());
 app.use(express.json());
@@ -101,19 +187,177 @@ app.get('/api/site-data', async (req, res) => {
 });
 
 app.post('/api/contact', async (req, res) => {
-  const { name, email, company, preferredDate, message } = req.body;
+  const { name, email, company, preferredDate, preferredTime, interviewDuration, message } = req.body;
   
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and email are required' });
   }
   
   try {
+    // Get admin's email from contact_info
+    const contactInfoRows = await sql`SELECT email, name as admin_name FROM contact_info LIMIT 1`;
+    const contactInfo = contactInfoRows[0];
+    const adminEmail = contactInfo?.email;
+    const adminName = contactInfo?.admin_name || 'Site Owner';
+    
+    // Store the submission
     await sql`
-      INSERT INTO contact_submissions (name, email, company, preferred_date, message)
-      VALUES (${name}, ${email}, ${company || ''}, ${preferredDate || ''}, ${message || ''})
+      INSERT INTO contact_submissions (name, email, company, preferred_date, preferred_time, interview_duration, message)
+      VALUES (${name}, ${email}, ${company || ''}, ${preferredDate || ''}, ${preferredTime || ''}, ${interviewDuration || '30'}, ${message || ''})
     `;
     
-    res.json({ message: 'Contact form submitted successfully' });
+    let calendarEventCreated = false;
+    let emailSent = false;
+    let calendarEventLink = null;
+    
+    // Try to create Google Calendar event if date/time provided
+    if (preferredDate && preferredTime) {
+      const duration = parseInt(interviewDuration) || 30;
+      const startDateTime = `${preferredDate}T${preferredTime}:00`;
+      const endDate = new Date(new Date(startDateTime).getTime() + duration * 60000);
+      const endDateTime = endDate.toISOString().slice(0, 19);
+      
+      try {
+        const calendarEvent = await createCalendarEvent({
+          summary: `Interview with ${name}${company ? ` from ${company}` : ''}`,
+          description: `Interview request from ${name} (${email})\n${company ? `Company: ${company}\n` : ''}${message ? `Message: ${message}` : ''}`,
+          startDateTime: startDateTime,
+          endDateTime: endDateTime,
+          attendees: [{ email: email }],
+        });
+        calendarEventCreated = true;
+        calendarEventLink = calendarEvent.htmlLink;
+      } catch (calErr) {
+        console.log('Calendar event creation failed (Google not connected):', calErr.message);
+      }
+    }
+    
+    // Try to send email notification to admin
+    if (adminEmail) {
+      try {
+        await sendGmailEmail({
+          to: adminEmail,
+          subject: `New Interview Request from ${name}${company ? ` - ${company}` : ''}`,
+          body: `
+            <h2>New Interview Request</h2>
+            <p><strong>Name:</strong> ${name}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            ${company ? `<p><strong>Company:</strong> ${company}</p>` : ''}
+            ${preferredDate ? `<p><strong>Preferred Date:</strong> ${preferredDate}</p>` : ''}
+            ${preferredTime ? `<p><strong>Preferred Time:</strong> ${preferredTime}</p>` : ''}
+            ${interviewDuration ? `<p><strong>Duration:</strong> ${interviewDuration} minutes</p>` : ''}
+            ${message ? `<p><strong>Message:</strong> ${message}</p>` : ''}
+            ${calendarEventLink ? `<p><strong>Calendar Event:</strong> <a href="${calendarEventLink}">View Event</a></p>` : ''}
+          `
+        });
+        emailSent = true;
+      } catch (emailErr) {
+        console.log('Email sending failed (Gmail not connected):', emailErr.message);
+      }
+    }
+    
+    res.json({ 
+      message: 'Interview request submitted successfully',
+      calendarEventCreated,
+      calendarEventLink,
+      emailSent,
+      adminEmail: adminEmail,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ GOOGLE OAUTH ROUTES ============
+
+// Get Google OAuth authorization URL
+app.get('/api/admin/google/auth-url', authenticateToken, async (req, res) => {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    return res.status(400).json({ error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.' });
+  }
+  
+  const scopes = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/gmail.send',
+  ];
+  
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: scopes,
+    prompt: 'consent',
+  });
+  
+  res.json({ authUrl });
+});
+
+// Handle Google OAuth callback
+app.get('/api/google/callback', async (req, res) => {
+  const { code, error } = req.query;
+  
+  if (error) {
+    return res.redirect(`/admin?google_error=${encodeURIComponent(error)}`);
+  }
+  
+  if (!code) {
+    return res.redirect('/admin?google_error=no_code');
+  }
+  
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    
+    // Store refresh token in database
+    if (tokens.refresh_token) {
+      await sql`
+        INSERT INTO site_settings (key, value, updated_at) VALUES ('google_refresh_token', ${tokens.refresh_token}, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+      `;
+    }
+    
+    // Store access token expiry info
+    await sql`
+      INSERT INTO site_settings (key, value, updated_at) VALUES ('google_connected', 'true', CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+    `;
+    
+    res.redirect('/admin?google_connected=true');
+  } catch (err) {
+    console.error('Google OAuth error:', err);
+    res.redirect(`/admin?google_error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// Check Google connection status
+app.get('/api/admin/google/status', authenticateToken, async (req, res) => {
+  try {
+    const rows = await sql`SELECT value FROM site_settings WHERE key = 'google_refresh_token'`;
+    const connected = !!rows[0]?.value;
+    
+    let email = null;
+    if (connected) {
+      try {
+        const auth = await getAuthenticatedClient();
+        if (auth) {
+          const oauth2 = google.oauth2({ version: 'v2', auth });
+          const userInfo = await oauth2.userinfo.get();
+          email = userInfo.data.email;
+        }
+      } catch (e) {
+        // Token might be invalid
+      }
+    }
+    
+    res.json({ connected, email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Disconnect Google account
+app.post('/api/admin/google/disconnect', authenticateToken, async (req, res) => {
+  try {
+    await sql`DELETE FROM site_settings WHERE key = 'google_refresh_token'`;
+    await sql`DELETE FROM site_settings WHERE key = 'google_connected'`;
+    res.json({ message: 'Google account disconnected' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

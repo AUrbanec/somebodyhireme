@@ -85,9 +85,17 @@ export default function App() {
     email: '',
     company: '',
     preferredDate: '',
+    preferredTime: '',
+    interviewDuration: '30',
     message: ''
   });
   const [formStatus, setFormStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [submissionResult, setSubmissionResult] = useState<{ 
+    adminEmail?: string; 
+    calendarEventCreated?: boolean; 
+    calendarEventLink?: string; 
+    emailSent?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     fetchSiteData()
@@ -100,13 +108,15 @@ export default function App() {
     e.preventDefault();
     setFormStatus('sending');
     try {
-      await submitContactForm(formData);
+      const result = await submitContactForm(formData);
+      setSubmissionResult(result);
       setFormStatus('success');
-      setFormData({ name: '', email: '', company: '', preferredDate: '', message: '' });
+      setFormData({ name: '', email: '', company: '', preferredDate: '', preferredTime: '', interviewDuration: '30', message: '' });
     } catch {
       setFormStatus('error');
     }
   };
+
 
   const sliderSettings = {
     dots: true,
@@ -183,11 +193,14 @@ export default function App() {
           
           <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-8 mb-12">
             <div className="space-y-4">
+              {settings.personal_about_enabled !== 'false' && (
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="text-xl font-semibold mb-4 text-[#107d8d]">About Me</h3>
                 <p className="text-gray-700 whitespace-pre-wrap">{personalOverview?.about_me}</p>
               </div>
+              )}
               
+              {settings.personal_video_enabled !== 'false' && (
               <div className="bg-white p-6 rounded-lg shadow-md aspect-video flex items-center justify-center text-gray-500">
                 {personalOverview?.video_url ? (
                   <iframe src={personalOverview.video_url} className="w-full h-full rounded" allowFullScreen />
@@ -195,9 +208,11 @@ export default function App() {
                   <p>[Video Introduction Placeholder - Add your video URL here]</p>
                 )}
               </div>
+              )}
             </div>
 
             <div className="space-y-4">
+              {settings.personal_traits_enabled !== 'false' && (
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="text-xl font-semibold mb-4 text-[#107d8d]">Personal Traits</h3>
                 <ul className="space-y-2 text-gray-700">
@@ -206,11 +221,14 @@ export default function App() {
                   ))}
                 </ul>
               </div>
+              )}
               
+              {settings.personal_images_enabled !== 'false' && (
               <div className="grid grid-cols-2 gap-4">
                 <img src={personalOverview?.image1_url || dogImage} alt="Personal" className="w-full h-48 object-cover rounded-lg shadow-md" />
                 <img src={personalOverview?.image2_url || dogImage} alt="Personal" className="w-full h-48 object-cover rounded-lg shadow-md" />
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -341,9 +359,48 @@ export default function App() {
             <div className="bg-white p-8 rounded-lg shadow-lg">
               <h3 className="text-xl font-semibold mb-6 text-[#107d8d]">Contact Form</h3>
               {formStatus === 'success' ? (
-                <div className="text-green-600 text-center py-8">
-                  <p className="text-xl font-semibold">Thank you!</p>
-                  <p>Your message has been sent successfully.</p>
+                <div className="text-center py-8 space-y-4">
+                  <div className="text-green-600">
+                    <p className="text-xl font-semibold">Thank you!</p>
+                    <p>Your interview request has been submitted.</p>
+                  </div>
+                  <div className="mt-6 space-y-3 text-left">
+                    <div className="space-y-2">
+                      {submissionResult?.calendarEventCreated && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <Calendar size={18} />
+                          <span className="text-sm">Calendar event created</span>
+                          {submissionResult.calendarEventLink && (
+                            <a 
+                              href={submissionResult.calendarEventLink} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-[#107d8d] hover:underline text-sm"
+                            >
+                              (View)
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {submissionResult?.emailSent && (
+                        <div className="flex items-center gap-2 text-green-600">
+                          <Mail size={18} />
+                          <span className="text-sm">Email notification sent</span>
+                        </div>
+                      )}
+                      {!submissionResult?.calendarEventCreated && !submissionResult?.emailSent && (
+                        <p className="text-sm text-gray-600">
+                          Your request has been saved. The site owner will review it and get back to you.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setFormStatus('idle'); setSubmissionResult(null); }}
+                    className="text-sm text-[#107d8d] hover:underline mt-4"
+                  >
+                    Submit another request
+                  </button>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -379,14 +436,39 @@ export default function App() {
                       placeholder="Your company"
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm mb-2">Preferred Date</label>
+                      <input
+                        type="date"
+                        value={formData.preferredDate}
+                        onChange={(e) => setFormData({ ...formData, preferredDate: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#37d2e9] focus:border-transparent"
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-2">Preferred Time</label>
+                      <input
+                        type="time"
+                        value={formData.preferredTime}
+                        onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#37d2e9] focus:border-transparent"
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <label className="block text-sm mb-2">Preferred Date</label>
-                    <input
-                      type="date"
-                      value={formData.preferredDate}
-                      onChange={(e) => setFormData({ ...formData, preferredDate: e.target.value })}
+                    <label className="block text-sm mb-2">Interview Duration</label>
+                    <select
+                      value={formData.interviewDuration}
+                      onChange={(e) => setFormData({ ...formData, interviewDuration: e.target.value })}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#37d2e9] focus:border-transparent"
-                    />
+                    >
+                      <option value="15">15 minutes</option>
+                      <option value="30">30 minutes</option>
+                      <option value="45">45 minutes</option>
+                      <option value="60">1 hour</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm mb-2">Message</label>
@@ -427,7 +509,7 @@ export default function App() {
                 <ul className="text-sm text-gray-700 space-y-1">
                   <li>• Monday - Friday: 9 AM - 5 PM CST</li>
                   <li>• Flexible for different time zones</li>
-                  <li>• Available for urgent interviews</li>
+                  <li>• Available for Last Minute Interviews</li>
                 </ul>
               </div>
             </div>

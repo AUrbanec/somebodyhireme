@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Home, FileText, Users, Briefcase, Star, BookOpen, Heart, Mail, Settings, LogOut, 
-  Plus, Trash2, Save, ChevronDown, ChevronUp, Menu, X, Inbox
+  Plus, Trash2, Save, ChevronDown, ChevronUp, Menu, X, Inbox, ArrowUp, ArrowDown, GripVertical
 } from 'lucide-react';
 import { removeToken } from '../api';
 import * as api from '../api';
@@ -230,17 +230,32 @@ const HeroEditor: React.FC<EditorProps> = ({ showMessage }) => {
 // Personal Overview Editor
 const PersonalEditor: React.FC<EditorProps> = ({ showMessage }) => {
   const [data, setData] = useState<any>({});
+  const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const componentVisibilityOptions = [
+    { key: 'personal_about_enabled', label: 'About Me' },
+    { key: 'personal_video_enabled', label: 'Video Introduction' },
+    { key: 'personal_traits_enabled', label: 'Personal Traits' },
+    { key: 'personal_images_enabled', label: 'Images' },
+  ];
+
   useEffect(() => {
-    api.fetchPersonalOverview().then(setData).catch(console.error).finally(() => setLoading(false));
+    Promise.all([
+      api.fetchPersonalOverview(),
+      api.fetchSettings()
+    ]).then(([personalData, settingsData]) => {
+      setData(personalData);
+      setSettings(settingsData);
+    }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await api.updatePersonalOverview(data);
+      await api.updateSettings(settings);
       showMessage('success', 'Personal overview saved!');
     } catch (err) {
       showMessage('error', 'Failed to save');
@@ -249,12 +264,36 @@ const PersonalEditor: React.FC<EditorProps> = ({ showMessage }) => {
     }
   };
 
+  const toggleComponentVisibility = (key: string) => {
+    const currentValue = settings[key] !== 'false';
+    setSettings(prev => ({ ...prev, [key]: (!currentValue).toString() }));
+  };
+
   const traits = data.traits ? (typeof data.traits === 'string' ? JSON.parse(data.traits) : data.traits) : [];
 
   if (loading) return <div className="text-center py-8">Loading...</div>;
 
   return (
     <div className="bg-white rounded-lg shadow p-6 space-y-6">
+      {/* Component Visibility Toggles */}
+      <div className="border-b pb-6">
+        <h3 className="text-sm font-medium text-gray-700 mb-3">Component Visibility</h3>
+        <p className="text-xs text-gray-500 mb-4">Toggle which components appear in the Personal Overview section.</p>
+        <div className="grid grid-cols-2 gap-3">
+          {componentVisibilityOptions.map(({ key, label }) => (
+            <label key={key} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings[key] !== 'false'}
+                onChange={() => toggleComponentVisibility(key)}
+                className="w-4 h-4 text-[#107d8d] rounded focus:ring-[#107d8d]"
+              />
+              <span className="text-sm text-gray-700">{label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">About Me</label>
         <textarea
@@ -331,7 +370,10 @@ const ExperienceEditor: React.FC<EditorProps> = ({ showMessage }) => {
   }, []);
 
   const loadData = () => {
-    api.fetchExperience().then(setItems).catch(console.error).finally(() => setLoading(false));
+    api.fetchExperience().then((data) => {
+      const sorted = [...data].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      setItems(sorted);
+    }).catch(console.error).finally(() => setLoading(false));
   };
 
   const handleSave = async (item: any) => {
@@ -359,6 +401,46 @@ const ExperienceEditor: React.FC<EditorProps> = ({ showMessage }) => {
     }
   };
 
+  const handleMoveUp = async (idx: number) => {
+    if (idx === 0) return;
+    const newItems = [...items];
+    const currentItem = newItems[idx];
+    const prevItem = newItems[idx - 1];
+    
+    const tempOrder = currentItem.sort_order;
+    currentItem.sort_order = prevItem.sort_order;
+    prevItem.sort_order = tempOrder;
+    
+    try {
+      await api.updateExperience(currentItem.id, currentItem);
+      await api.updateExperience(prevItem.id, prevItem);
+      loadData();
+      showMessage('success', 'Order updated!');
+    } catch (err) {
+      showMessage('error', 'Failed to update order');
+    }
+  };
+
+  const handleMoveDown = async (idx: number) => {
+    if (idx === items.length - 1) return;
+    const newItems = [...items];
+    const currentItem = newItems[idx];
+    const nextItem = newItems[idx + 1];
+    
+    const tempOrder = currentItem.sort_order;
+    currentItem.sort_order = nextItem.sort_order;
+    nextItem.sort_order = tempOrder;
+    
+    try {
+      await api.updateExperience(currentItem.id, currentItem);
+      await api.updateExperience(nextItem.id, nextItem);
+      loadData();
+      showMessage('success', 'Order updated!');
+    } catch (err) {
+      showMessage('error', 'Failed to update order');
+    }
+  };
+
   const addNew = () => {
     setItems([...items, { title: '', period: '', company: '', details: '[]', sort_order: items.length, isNew: true }]);
     setExpanded(items.length);
@@ -372,10 +454,14 @@ const ExperienceEditor: React.FC<EditorProps> = ({ showMessage }) => {
         <ExperienceItem
           key={item.id || `new-${idx}`}
           item={item}
+          index={idx}
+          totalItems={items.length}
           expanded={expanded === idx}
           onToggle={() => setExpanded(expanded === idx ? null : idx)}
           onSave={handleSave}
           onDelete={() => handleDelete(item.id)}
+          onMoveUp={() => handleMoveUp(idx)}
+          onMoveDown={() => handleMoveDown(idx)}
           onChange={(updated) => {
             const newItems = [...items];
             newItems[idx] = updated;
@@ -396,22 +482,49 @@ const ExperienceEditor: React.FC<EditorProps> = ({ showMessage }) => {
 
 const ExperienceItem: React.FC<{
   item: any;
+  index: number;
+  totalItems: number;
   expanded: boolean;
   onToggle: () => void;
   onSave: (item: any) => void;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onChange: (item: any) => void;
-}> = ({ item, expanded, onToggle, onSave, onDelete, onChange }) => {
+}> = ({ item, index, totalItems, expanded, onToggle, onSave, onDelete, onMoveUp, onMoveDown, onChange }) => {
   const details = typeof item.details === 'string' ? JSON.parse(item.details || '[]') : item.details;
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="p-4 flex items-center justify-between cursor-pointer" onClick={onToggle}>
-        <div>
-          <h3 className="font-medium">{item.title || 'New Experience'}</h3>
-          <p className="text-sm text-gray-500">{item.period} - {item.company}</p>
+      <div className="p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {item.id && (
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
+                disabled={index === 0}
+                className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Move up"
+              >
+                <ArrowUp size={16} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
+                disabled={index === totalItems - 1}
+                className="p-1 hover:bg-gray-100 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Move down"
+              >
+                <ArrowDown size={16} />
+              </button>
+            </div>
+          )}
+          <div className="cursor-pointer" onClick={onToggle}>
+            <h3 className="font-medium">{item.title || 'New Experience'}</h3>
+            <p className="text-sm text-gray-500">{item.period} - {item.company}</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={onToggle}>
+          <span className="text-xs text-gray-400">#{item.sort_order ?? index}</span>
           {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
         </div>
       </div>
@@ -1025,6 +1138,9 @@ const SettingsPanel: React.FC<EditorProps> = ({ showMessage }) => {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingVisibility, setSavingVisibility] = useState(false);
+  const [googleStatus, setGoogleStatus] = useState<{ connected: boolean; email?: string } | null>(null);
+  const [loadingGoogle, setLoadingGoogle] = useState(true);
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
 
   const pageVisibilityOptions = [
     { key: 'page_personal_enabled', label: 'Personal Overview' },
@@ -1037,7 +1153,41 @@ const SettingsPanel: React.FC<EditorProps> = ({ showMessage }) => {
 
   useEffect(() => {
     api.fetchSettings().then(setSettings).catch(console.error).finally(() => setLoadingSettings(false));
+    api.getGoogleStatus().then(setGoogleStatus).catch(console.error).finally(() => setLoadingGoogle(false));
+    
+    // Check for Google OAuth callback params
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('google_connected') === 'true') {
+      showMessage('success', 'Google account connected successfully!');
+      window.history.replaceState({}, '', window.location.pathname);
+      api.getGoogleStatus().then(setGoogleStatus).catch(console.error);
+    } else if (urlParams.get('google_error')) {
+      showMessage('error', `Google connection failed: ${urlParams.get('google_error')}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
+
+  const handleConnectGoogle = async () => {
+    setConnectingGoogle(true);
+    try {
+      const { authUrl } = await api.getGoogleAuthUrl();
+      window.location.href = authUrl;
+    } catch (err: any) {
+      showMessage('error', err.message || 'Failed to get Google auth URL');
+      setConnectingGoogle(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    if (!confirm('Are you sure you want to disconnect your Google account? This will disable automatic calendar events and email notifications.')) return;
+    try {
+      await api.disconnectGoogle();
+      setGoogleStatus({ connected: false });
+      showMessage('success', 'Google account disconnected');
+    } catch (err) {
+      showMessage('error', 'Failed to disconnect Google account');
+    }
+  };
 
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
@@ -1115,6 +1265,62 @@ const SettingsPanel: React.FC<EditorProps> = ({ showMessage }) => {
               <Save size={16} />
               {savingVisibility ? 'Saving...' : 'Save Visibility Settings'}
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Google Integration Section */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium mb-4">Google Integration</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Connect your Google account to automatically create calendar events and send email notifications when someone schedules an interview.
+        </p>
+        {loadingGoogle ? (
+          <div className="text-center py-4">Loading...</div>
+        ) : googleStatus?.connected ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div>
+                <p className="font-medium text-green-800">Connected</p>
+                {googleStatus.email && (
+                  <p className="text-sm text-green-600">{googleStatus.email}</p>
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              ✓ Calendar events will be created automatically<br/>
+              ✓ Email notifications will be sent to your inbox
+            </p>
+            <button
+              onClick={handleDisconnectGoogle}
+              className="text-red-600 hover:text-red-800 text-sm underline"
+            >
+              Disconnect Google Account
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+              <p className="text-gray-600">Not connected</p>
+            </div>
+            <button
+              onClick={handleConnectGoogle}
+              disabled={connectingGoogle}
+              className="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              {connectingGoogle ? 'Connecting...' : 'Connect Google Account'}
+            </button>
+            <p className="text-xs text-gray-500">
+              This will request access to your Google Calendar and Gmail for sending notifications.
+            </p>
           </div>
         )}
       </div>
