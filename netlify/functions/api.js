@@ -194,7 +194,7 @@ app.get('/api/site-data', async (req, res) => {
 });
 
 app.post('/api/contact', async (req, res) => {
-  const { name, email, company, preferredDate, preferredTime, interviewDuration, message } = req.body;
+  const { name, email, company, preferredDate, preferredTime, interviewDuration, timezone, message } = req.body;
   
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and email are required' });
@@ -225,24 +225,24 @@ app.post('/api/contact', async (req, res) => {
       const hours = parseInt(timeParts[0]);
       const minutes = parseInt(timeParts[1]) || 0;
       
-      // Create start date
-      const startDate = new Date(preferredDate);
-      startDate.setHours(hours, minutes, 0, 0);
+      // Calculate end time
+      const endHours = hours + Math.floor((minutes + duration) / 60);
+      const endMinutes = (minutes + duration) % 60;
       
-      // Create end date
-      const endDate = new Date(startDate.getTime() + duration * 60000);
-      
-      // Format as ISO strings for Google Calendar
-      const startDateTime = startDate.toISOString();
-      const endDateTime = endDate.toISOString();
+      // Format as local datetime strings (YYYY-MM-DDTHH:MM:SS) - Google will interpret with timeZone
+      const startDateTime = `${preferredDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+      const endDateTime = `${preferredDate}T${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}:00`;
       
       try {
-        console.log('Creating calendar event:', { startDateTime, endDateTime, name, email });
+        // Use visitor's timezone - Google Calendar will convert for display
+        const visitorTimezone = timezone || 'America/Chicago';
+        console.log('Creating calendar event:', { startDateTime, endDateTime, name, email, timezone: visitorTimezone });
         const calendarEvent = await createCalendarEvent({
           summary: `Interview with ${name}${company ? ` from ${company}` : ''}`,
-          description: `Interview request from ${name} (${email})\n${company ? `Company: ${company}\n` : ''}${message ? `Message: ${message}` : ''}`,
+          description: `Interview request from ${name} (${email})\n${company ? `Company: ${company}\n` : ''}${message ? `Message: ${message}` : ''}\n\nRequested in timezone: ${visitorTimezone}`,
           startDateTime: startDateTime,
           endDateTime: endDateTime,
+          timeZone: visitorTimezone,
           attendees: [{ email: email }],
         });
         calendarEventCreated = true;
@@ -325,25 +325,26 @@ app.get('/api/google/callback', async (req, res) => {
   }
   
   try {
+    console.log('Processing Google OAuth callback...');
     const { tokens } = await oauth2Client.getToken(code);
+    console.log('Got tokens:', { hasRefreshToken: !!tokens.refresh_token, hasAccessToken: !!tokens.access_token });
     
-    // Store refresh token in database
+    // Store refresh token in database (use DELETE + INSERT for compatibility)
     if (tokens.refresh_token) {
-      await sql`
-        INSERT INTO site_settings (key, value, updated_at) VALUES ('google_refresh_token', ${tokens.refresh_token}, CURRENT_TIMESTAMP)
-        ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
-      `;
+      await sql`DELETE FROM site_settings WHERE key = 'google_refresh_token'`;
+      await sql`INSERT INTO site_settings (key, value) VALUES ('google_refresh_token', ${tokens.refresh_token})`;
+      console.log('Stored refresh token in database');
+    } else {
+      console.log('No refresh token received - user may need to revoke access and try again');
     }
     
-    // Store access token expiry info
-    await sql`
-      INSERT INTO site_settings (key, value, updated_at) VALUES ('google_connected', 'true', CURRENT_TIMESTAMP)
-      ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
-    `;
+    // Store connected status
+    await sql`DELETE FROM site_settings WHERE key = 'google_connected'`;
+    await sql`INSERT INTO site_settings (key, value) VALUES ('google_connected', 'true')`;
     
     res.redirect('/admin?google_connected=true');
   } catch (err) {
-    console.error('Google OAuth error:', err);
+    console.error('Google OAuth error:', err.message, err.stack);
     res.redirect(`/admin?google_error=${encodeURIComponent(err.message)}`);
   }
 });

@@ -26,6 +26,7 @@ export const submitContactForm = async (data: {
   preferredDate?: string;
   preferredTime?: string;
   interviewDuration?: string;
+  timezone?: string;
   message?: string;
 }) => {
   const res = await fetch(`${API_BASE}/api/contact`, {

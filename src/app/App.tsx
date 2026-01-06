@@ -87,6 +87,7 @@ export default function App() {
     preferredDate: '',
     preferredTime: '',
     interviewDuration: '30',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago',
     message: ''
   });
   const [formStatus, setFormStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -111,7 +112,7 @@ export default function App() {
       const result = await submitContactForm(formData);
       setSubmissionResult(result);
       setFormStatus('success');
-      setFormData({ name: '', email: '', company: '', preferredDate: '', preferredTime: '', interviewDuration: '30', message: '' });
+      setFormData({ name: '', email: '', company: '', preferredDate: '', preferredTime: '', interviewDuration: '30', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago', message: '' });
     } catch {
       setFormStatus('error');
     }
@@ -475,18 +476,42 @@ export default function App() {
                       </select>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm mb-2">Interview Duration</label>
-                    <select
-                      value={formData.interviewDuration}
-                      onChange={(e) => setFormData({ ...formData, interviewDuration: e.target.value })}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#37d2e9] focus:border-transparent"
-                    >
-                      <option value="15">15 minutes</option>
-                      <option value="30">30 minutes</option>
-                      <option value="45">45 minutes</option>
-                      <option value="60">1 hour</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm mb-2">Interview Duration</label>
+                      <select
+                        value={formData.interviewDuration}
+                        onChange={(e) => setFormData({ ...formData, interviewDuration: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#37d2e9] focus:border-transparent"
+                      >
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="45">45 minutes</option>
+                        <option value="60">1 hour</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-2">Your Timezone</label>
+                      <select
+                        value={formData.timezone}
+                        onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#37d2e9] focus:border-transparent"
+                      >
+                        <option value="America/New_York">Eastern (ET)</option>
+                        <option value="America/Chicago">Central (CT)</option>
+                        <option value="America/Denver">Mountain (MT)</option>
+                        <option value="America/Los_Angeles">Pacific (PT)</option>
+                        <option value="America/Anchorage">Alaska (AKT)</option>
+                        <option value="Pacific/Honolulu">Hawaii (HT)</option>
+                        <option value="Europe/London">London (GMT/BST)</option>
+                        <option value="Europe/Paris">Central Europe (CET)</option>
+                        <option value="Europe/Berlin">Berlin (CET)</option>
+                        <option value="Asia/Tokyo">Tokyo (JST)</option>
+                        <option value="Asia/Shanghai">China (CST)</option>
+                        <option value="Asia/Kolkata">India (IST)</option>
+                        <option value="Australia/Sydney">Sydney (AEST)</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm mb-2">Message</label>
