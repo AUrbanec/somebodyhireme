@@ -81,13 +81,20 @@ const sendGmailEmail = async (emailDetails) => {
   
   const gmail = google.gmail({ version: 'v1', auth });
   
+  // Get the authenticated user's email for the From header
+  const oauth2 = google.oauth2({ version: 'v2', auth });
+  const userInfo = await oauth2.userinfo.get();
+  const fromEmail = userInfo.data.email;
+  
   const message = [
+    `From: ${fromEmail}`,
     `To: ${emailDetails.to}`,
     `Subject: ${emailDetails.subject}`,
+    'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
     '',
     emailDetails.body
-  ].join('\n');
+  ].join('\r\n');
   
   const encodedMessage = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   
@@ -213,11 +220,24 @@ app.post('/api/contact', async (req, res) => {
     // Try to create Google Calendar event if date/time provided
     if (preferredDate && preferredTime) {
       const duration = parseInt(interviewDuration) || 30;
-      const startDateTime = `${preferredDate}T${preferredTime}:00`;
-      const endDate = new Date(new Date(startDateTime).getTime() + duration * 60000);
-      const endDateTime = endDate.toISOString().slice(0, 19);
+      // Parse time - handle both HH:MM and HH:MM:SS formats
+      const timeParts = preferredTime.split(':');
+      const hours = parseInt(timeParts[0]);
+      const minutes = parseInt(timeParts[1]) || 0;
+      
+      // Create start date
+      const startDate = new Date(preferredDate);
+      startDate.setHours(hours, minutes, 0, 0);
+      
+      // Create end date
+      const endDate = new Date(startDate.getTime() + duration * 60000);
+      
+      // Format as ISO strings for Google Calendar
+      const startDateTime = startDate.toISOString();
+      const endDateTime = endDate.toISOString();
       
       try {
+        console.log('Creating calendar event:', { startDateTime, endDateTime, name, email });
         const calendarEvent = await createCalendarEvent({
           summary: `Interview with ${name}${company ? ` from ${company}` : ''}`,
           description: `Interview request from ${name} (${email})\n${company ? `Company: ${company}\n` : ''}${message ? `Message: ${message}` : ''}`,
@@ -227,8 +247,9 @@ app.post('/api/contact', async (req, res) => {
         });
         calendarEventCreated = true;
         calendarEventLink = calendarEvent.htmlLink;
+        console.log('Calendar event created successfully:', calendarEventLink);
       } catch (calErr) {
-        console.log('Calendar event creation failed (Google not connected):', calErr.message);
+        console.error('Calendar event creation failed:', calErr.message, calErr.stack);
       }
     }
     
@@ -279,6 +300,7 @@ app.get('/api/admin/google/auth-url', authenticateToken, async (req, res) => {
   const scopes = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/userinfo.email',
   ];
   
   const authUrl = oauth2Client.generateAuthUrl({
