@@ -594,6 +594,15 @@ export default function App() {
           </div>
           <div className="text-center mt-6 text-sm text-[#efc172]">
             <p>{settings.copyright_text || '© 2024 SomebodyHire.Me | Built with personality and desperation'}</p>
+            <div className="mt-2 flex items-center justify-center gap-4">
+              <a href="/privacy-policy" className="hover:text-[#f6dbad] transition-colors underline underline-offset-2">
+                Privacy Policy
+              </a>
+              <span aria-hidden="true">|</span>
+              <a href="/terms-of-service" className="hover:text-[#f6dbad] transition-colors underline underline-offset-2">
+                Terms of Service
+              </a>
+            </div>
           </div>
         </div>
       </footer>
