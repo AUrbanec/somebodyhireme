@@ -28,6 +28,8 @@ npm-debug.log*
 # Zone identifier files
 *.Zone.Identifier
 *:Zone.Identifier
+*.tsx:Zone.Identifier
+*.tsxZone.Identifier
 
 
 # Local Netlify folder
